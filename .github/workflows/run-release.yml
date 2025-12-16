@@ -1,0 +1,31 @@
+name: Psiphon OpenWrt Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-psiphon.yml
+    with:
+      openwrt_version: "24.10.4"
+      tag_name: ${{ github.ref_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release and upload IPKs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/**/*.ipk
