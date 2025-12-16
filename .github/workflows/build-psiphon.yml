@@ -1,0 +1,62 @@
+name: Build Psiphon (OpenWrt)
+
+on:
+  workflow_call:
+    inputs:
+      openwrt_version:
+        required: true
+        type: string
+      tag_name:
+        required: true
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.job-config }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - id: gen
+        run: |
+          node index.js "${{ inputs.openwrt_version }}"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            axel \
+            build-essential \
+            zstd \
+            file \
+            rsync \
+            python3-pyelftools
+
+      - name: Build psiphon
+        run: |
+          chmod +x scripts/build-psiphon.sh
+          scripts/build-psiphon.sh \
+            "${{ matrix.tag }}" \
+            "${{ matrix.target }}" \
+            "${{ matrix.subtarget }}" \
+            "${{ matrix.pkgarch }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: psiphon-${{ matrix.target }}-${{ matrix.subtarget }}
+          path: artifacts/*.ipk
